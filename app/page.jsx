@@ -1,226 +1,209 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import {
-  Search, Plus, Bell, CalendarDays, Home, Users, FileText, DollarSign,
-  MapPin, Phone, Mail, CheckCircle2, Clock, AlertTriangle, Filter,
-  Upload, ClipboardList, BarChart3, Menu, X, ChevronRight
-} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 const stages = ["New Lead", "Inspection", "Insurance", "Estimate", "Signed", "Production", "Closed"];
 
-const initialJobs = [
-  { id: 1, name: "Scott Wampler", address: "9 Faulkner Cir, Greer SC", phone: "803-555-0148", email: "scott@email.com", stage: "Insurance", value: 14850, rep: "Michael", priority: "High", next: "Request re-inspection", due: "Today", source: "Door Knock" },
-  { id: 2, name: "Sarah Mitchell", address: "221 Diamond Dr, Shelby NC", phone: "704-555-0192", email: "sarah@email.com", stage: "Inspection", value: 12500, rep: "Austin", priority: "Medium", next: "Inspect roof + soft metals", due: "Tomorrow", source: "Referral" },
-  { id: 3, name: "David Carter", address: "88 Stadium Ln, Gaffney SC", phone: "864-555-0160", email: "david@email.com", stage: "Estimate", value: 16975, rep: "Michael", priority: "Medium", next: "Send estimate", due: "Friday", source: "Website" },
-  { id: 4, name: "Kelly Johnson", address: "410 Home Plate Rd, Blacksburg SC", phone: "864-555-0172", email: "kelly@email.com", stage: "Production", value: 21200, rep: "Chris", priority: "High", next: "Order materials", due: "Monday", source: "Door Knock" },
-  { id: 5, name: "Brian Thomas", address: "735 Victory Ave, Earl NC", phone: "704-555-0133", email: "brian@email.com", stage: "Signed", value: 13200, rep: "Austin", priority: "Low", next: "Collect deposit", due: "Wednesday", source: "Facebook" },
-  { id: 6, name: "Angela Brooks", address: "115 Grand Slam Ct, Spartanburg SC", phone: "864-555-0188", email: "angela@email.com", stage: "New Lead", value: 9800, rep: "Michael", priority: "Medium", next: "Call homeowner", due: "Today", source: "Yard Sign" },
-];
-
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-function StatCard({ title, value, sub, icon: Icon }) {
-  return (
-    <div className="stat-card">
-      <div>
-        <p>{title}</p>
-        <h3>{value}</h3>
-        <span>{sub}</span>
-      </div>
-      <div className="stat-icon"><Icon size={23} /></div>
-    </div>
-  );
-}
-
-function JobCard({ job, onOpen }) {
-  return (
-    <button className="job-card" onClick={() => onOpen(job)}>
-      <div className="job-top">
-        <div>
-          <div className="job-name-row">
-            <strong>{job.name}</strong>
-            <span className={`priority ${job.priority.toLowerCase()}`}>{job.priority}</span>
-          </div>
-          <small><MapPin size={13} /> {job.address}</small>
-        </div>
-        <ChevronRight size={18} />
-      </div>
-      <div className="next-play">
-        <span>Next play</span>
-        <b>{job.next}</b>
-      </div>
-      <div className="job-bottom">
-        <strong>{money.format(job.value)}</strong>
-        <span>Due {job.due}</span>
-      </div>
-    </button>
-  );
-}
-
 export default function Page() {
-  const [jobs, setJobs] = useState(initialJobs);
-  const [query, setQuery] = useState("");
-  const [selectedStage, setSelectedStage] = useState("All");
-  const [activeJob, setActiveJob] = useState(initialJobs[0]);
-  const [mobileNav, setMobileNav] = useState(false);
+  const [leads, setLeads] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({
+    homeowner_name: "",
+    phone: "",
+    email: "",
+    address: "",
+    lead_source: "",
+    estimated_value: "",
+    notes: "",
+    status: "New Lead",
+    sales_rep: "Michael",
+  });
 
-  const filtered = useMemo(() => {
-    return jobs.filter((job) => {
-      const searchText = [job.name, job.address, job.rep, job.stage, job.source].join(" ").toLowerCase();
-      return searchText.includes(query.toLowerCase()) && (selectedStage === "All" || job.stage === selectedStage);
-    });
-  }, [jobs, query, selectedStage]);
+  async function loadLeads() {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  const pipelineValue = filtered.reduce((sum, job) => sum + job.value, 0);
-  const signedValue = jobs.filter((job) => ["Signed", "Production", "Closed"].includes(job.stage)).reduce((sum, job) => sum + job.value, 0);
-
-  function moveJob(id, stage) {
-    setJobs((current) => current.map((job) => job.id === id ? { ...job, stage } : job));
-    setActiveJob((job) => job?.id === id ? { ...job, stage } : job);
+    if (error) {
+      setMessage("Error loading leads: " + error.message);
+    } else {
+      setLeads(data || []);
+    }
   }
 
-  const navItems = [
-    [Home, "Dashboard"], [Users, "Customers"], [ClipboardList, "Boards"], [CalendarDays, "Calendar"],
-    [FileText, "Files"], [DollarSign, "Sales"], [BarChart3, "Reports"]
-  ];
+  useEffect(() => {
+    loadLeads();
+  }, []);
+
+  function updateForm(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function saveLead(e) {
+    e.preventDefault();
+    setMessage("Saving lead...");
+
+    const { error } = await supabase.from("leads").insert([
+      {
+        homeowner_name: form.homeowner_name,
+        phone: form.phone,
+        email: form.email,
+        address: form.address,
+        lead_source: form.lead_source,
+        estimated_value: form.estimated_value ? Number(form.estimated_value) : null,
+        notes: form.notes,
+        status: form.status,
+        sales_rep: form.sales_rep,
+      },
+    ]);
+
+    if (error) {
+      setMessage("Error saving lead: " + error.message);
+      return;
+    }
+
+    setMessage("Lead saved successfully!");
+    setShowForm(false);
+    setForm({
+      homeowner_name: "",
+      phone: "",
+      email: "",
+      address: "",
+      lead_source: "",
+      estimated_value: "",
+      notes: "",
+      status: "New Lead",
+      sales_rep: "Michael",
+    });
+
+    loadLeads();
+  }
 
   return (
-    <div className="app">
-      <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="logo-wrap">
-          <img src="/logo.jpg" alt="Home Run Roofing Logo" />
-          <button className="mobile-close" onClick={() => setMobileNav(false)}><X /></button>
-        </div>
+    <main style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "Arial, sans-serif" }}>
+      <div style={{ background: "#071b4d", color: "white", padding: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 34 }}>Home Run Roofing CRM</h1>
+        <p style={{ marginTop: 8 }}>We knock it out of the park.</p>
+        <button onClick={() => setShowForm(true)} style={buttonStyle}>+ New Job</button>
+      </div>
 
-        <nav>
-          {navItems.map(([Icon, label], index) => (
-            <button key={label} className={index === 0 ? "active" : ""}>
-              <Icon size={20} /> {label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="motto-card">
-          <span>Team Motto</span>
-          <h2>We knock it out of the park.</h2>
-          <p>Track every lead, claim, estimate, file, and production step from one dugout.</p>
-        </div>
-      </aside>
-
-      <main>
-        <header>
-          <button className="mobile-menu" onClick={() => setMobileNav(true)}><Menu /></button>
-          <div>
-            <p>Home Run Roofing CRM</p>
-            <h1>Sales Pipeline</h1>
+      <div style={{ padding: 24 }}>
+        {message && (
+          <div style={{ padding: 14, marginBottom: 20, background: "white", borderRadius: 12 }}>
+            {message}
           </div>
-          <div className="header-actions">
-            <label className="search">
-              <Search size={18} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customer, address, rep, or source..." />
-            </label>
-            <button className="icon-button"><Bell size={20} /></button>
-            <button className="new-job"><Plus size={18} /> New Job</button>
-          </div>
-        </header>
+        )}
 
-        <section className="content">
-          <div className="stats-grid">
-            <StatCard title="Open Pipeline" value={money.format(pipelineValue)} sub={`${filtered.length} active opportunities`} icon={DollarSign} />
-            <StatCard title="Signed / Production" value={money.format(signedValue)} sub="Booked revenue on deck" icon={CheckCircle2} />
-            <StatCard title="Today's Follow Ups" value="11" sub="Calls, texts, inspections" icon={Clock} />
-            <StatCard title="Needs Attention" value="4" sub="Insurance, photos, supplements" icon={AlertTriangle} />
-          </div>
-
-          <div className="workspace">
-            <section className="board-panel">
-              <div className="panel-head">
-                <div>
-                  <h2>Board View</h2>
-                  <p>Move jobs through each stage like JobNimbus or AccuLynx-style production boards.</p>
-                </div>
-                <div className="stage-filters">
-                  {["All", ...stages].map((stage) => (
-                    <button key={stage} onClick={() => setSelectedStage(stage)} className={selectedStage === stage ? "selected" : ""}>{stage}</button>
-                  ))}
-                  <button><Filter size={14} /> Filter</button>
-                </div>
-              </div>
-
-              <div className="board">
-                {stages.map((stage) => {
-                  const columnJobs = filtered.filter((job) => job.stage === stage);
-                  return (
-                    <div className="column" key={stage}>
-                      <div className="column-head">
-                        <h3>{stage}</h3>
-                        <span>{columnJobs.length}</span>
-                      </div>
-                      <div className="cards">
-                        {columnJobs.map((job) => <JobCard key={job.id} job={job} onOpen={setActiveJob} />)}
-                        {!columnJobs.length && <div className="empty">No jobs here</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <aside className="details">
-              <div className="customer-card">
-                <div className="customer-head">
-                  <div>
-                    <span>Customer File</span>
-                    <h2>{activeJob.name}</h2>
-                  </div>
-                  <b>{activeJob.stage}</b>
-                </div>
-                <div className="contact-lines">
-                  <p><MapPin size={17} /> {activeJob.address}</p>
-                  <p><Phone size={17} /> {activeJob.phone}</p>
-                  <p><Mail size={17} /> {activeJob.email}</p>
-                </div>
-                <div className="mini-grid">
-                  <div><span>Contract</span><b>{money.format(activeJob.value)}</b></div>
-                  <div><span>Rep</span><b>{activeJob.rep}</b></div>
-                  <div><span>Source</span><b>{activeJob.source}</b></div>
-                  <div><span>Due</span><b>{activeJob.due}</b></div>
-                </div>
-                <div className="action-box">
-                  <span>Next Best Action</span>
-                  <b>{activeJob.next}</b>
-                </div>
-                <label className="stage-select">
-                  Update Stage
-                  <select value={activeJob.stage} onChange={(e) => moveJob(activeJob.id, e.target.value)}>
-                    {stages.map((stage) => <option key={stage}>{stage}</option>)}
-                  </select>
-                </label>
-              </div>
-
-              <div className="daily-card">
-                <h2>Daily Dugout</h2>
-                {[
-                  ["Follow up with new leads", 7, Phone],
-                  ["Upload inspection photos", 4, Upload],
-                  ["Estimates waiting", 3, FileText],
-                  ["Production items", 5, ClipboardList],
-                ].map(([label, count, Icon]) => (
-                  <button key={label}><span><Icon size={18} /> {label}</span><b>{count}</b></button>
-                ))}
-              </div>
-
-              <div className="quick-add">
-                <h2>Quick Add</h2>
-                <input placeholder="Homeowner name" />
-                <input placeholder="Property address" />
-                <button>Add Lead</button>
-              </div>
-            </aside>
-          </div>
+        <section style={{ background: "white", padding: 20, borderRadius: 18, marginBottom: 24 }}>
+          <h2>Quick Add Lead</h2>
+          <form onSubmit={saveLead} style={{ display: "grid", gap: 12 }}>
+            <input name="homeowner_name" placeholder="Homeowner Name" value={form.homeowner_name} onChange={updateForm} required style={inputStyle} />
+            <input name="address" placeholder="Address" value={form.address} onChange={updateForm} required style={inputStyle} />
+            <input name="phone" placeholder="Phone" value={form.phone} onChange={updateForm} style={inputStyle} />
+            <input name="email" placeholder="Email" value={form.email} onChange={updateForm} style={inputStyle} />
+            <input name="estimated_value" placeholder="Estimated Value" value={form.estimated_value} onChange={updateForm} style={inputStyle} />
+            <button type="submit" style={buttonStyle}>Save Lead</button>
+          </form>
         </section>
-      </main>
-    </div>
+
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(220px, 1fr))", gap: 14, overflowX: "auto" }}>
+          {stages.map((stage) => (
+            <div key={stage} style={{ background: "#e2e8f0", borderRadius: 16, padding: 12 }}>
+              <h3>{stage}</h3>
+              {leads.filter((lead) => lead.status === stage).map((lead) => (
+                <div key={lead.id} style={cardStyle}>
+                  <strong>{lead.homeowner_name}</strong>
+                  <p>{lead.address}</p>
+                  <p>{lead.phone}</p>
+                  <p>{lead.estimated_value ? `$${lead.estimated_value}` : ""}</p>
+                </div>
+              ))}
+            </div>
+          ))}
+        </section>
+      </div>
+
+      {showForm && (
+        <div style={modalBg}>
+          <form onSubmit={saveLead} style={modalCard}>
+            <h2>New Job</h2>
+            <input name="homeowner_name" placeholder="Homeowner Name" value={form.homeowner_name} onChange={updateForm} required style={inputStyle} />
+            <input name="address" placeholder="Address" value={form.address} onChange={updateForm} required style={inputStyle} />
+            <input name="phone" placeholder="Phone" value={form.phone} onChange={updateForm} style={inputStyle} />
+            <input name="email" placeholder="Email" value={form.email} onChange={updateForm} style={inputStyle} />
+            <input name="lead_source" placeholder="Lead Source" value={form.lead_source} onChange={updateForm} style={inputStyle} />
+            <input name="estimated_value" placeholder="Estimated Value" value={form.estimated_value} onChange={updateForm} style={inputStyle} />
+            <textarea name="notes" placeholder="Notes" value={form.notes} onChange={updateForm} style={inputStyle} />
+            <button type="submit" style={buttonStyle}>Save Job</button>
+            <button type="button" onClick={() => setShowForm(false)} style={cancelStyle}>Cancel</button>
+          </form>
+        </div>
+      )}
+    </main>
   );
 }
+
+const inputStyle = {
+  padding: 12,
+  borderRadius: 10,
+  border: "1px solid #cbd5e1",
+  fontSize: 16,
+};
+
+const buttonStyle = {
+  marginTop: 12,
+  background: "#b91c1c",
+  color: "white",
+  border: "none",
+  borderRadius: 12,
+  padding: "12px 18px",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const cancelStyle = {
+  marginTop: 10,
+  background: "#334155",
+  color: "white",
+  border: "none",
+  borderRadius: 12,
+  padding: "12px 18px",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const cardStyle = {
+  background: "white",
+  padding: 14,
+  borderRadius: 14,
+  marginBottom: 12,
+  boxShadow: "0 2px 8px rgba(0,0,0,.08)",
+};
+
+const modalBg = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+};
+
+const modalCard = {
+  background: "white",
+  padding: 24,
+  borderRadius: 18,
+  width: "100%",
+  maxWidth: 500,
+  display: "grid",
+  gap: 12,
+};

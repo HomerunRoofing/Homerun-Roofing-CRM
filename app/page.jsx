@@ -104,10 +104,17 @@ export default function Page() {
   return (
     <main style={styles.page}>
       <aside style={styles.sidebar}>
-        <div style={styles.logoBox}>
-          <div style={styles.logoText}>HOME RUN</div>
-          <div style={styles.logoSub}>ROOFING CRM</div>
-        </div>
+      <div style={styles.logoBox}>
+  <img
+    src="/logo.jpg"
+    alt="Home Run Roofing"
+    style={{
+      width: "100%",
+      borderRadius: 14,
+      objectFit: "contain",
+    }}
+  />
+</div>
 
         {["Dashboard", "Customers", "Boards", "Calendar", "Files", "Sales", "Reports"].map((item, i) => (
           <button key={item} style={i === 0 ? styles.navActive : styles.nav}>

@@ -246,7 +246,19 @@ async function updateLeadStatus(id, newStatus) {
                 <p><strong>Email:</strong> {selectedLead.email}</p>
                 <p><strong>Source:</strong> {selectedLead.lead_source}</p>
                 <p><strong>Rep:</strong> {selectedLead.sales_rep}</p>
-                <p><strong>Status:</strong> {selectedLead.status}</p>
+                <p><strong>Status:</strong></p>
+
+<select
+  value={selectedLead.status}
+  onChange={(e) => updateLeadStatus(selectedLead.id, e.target.value)}
+  style={styles.input}
+>
+  {stages.map((stage) => (
+    <option key={stage} value={stage}>
+      {stage}
+    </option>
+  ))}
+</select>
                 <p><strong>Value:</strong> {selectedLead.estimated_value ? money.format(Number(selectedLead.estimated_value)) : ""}</p>
                 <div style={styles.nextBox}>
                   <strong>Notes</strong>

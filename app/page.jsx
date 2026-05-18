@@ -123,8 +123,7 @@ async function updateLeadStatus(id, newStatus) {
     currentLead ? { ...currentLead, status: newStatus } : currentLead
   );
 }
-    await loadLeads();
-  }
+   
 
   const pipelineValue = useMemo(
     () => leads.reduce((sum, lead) => sum + Number(lead.estimated_value || 0), 0),

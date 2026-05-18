@@ -56,43 +56,73 @@ export default function Page() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  async function saveLead(e) {
-    e.preventDefault();
-    setMessage("Saving lead...");
+async function saveLead(e) {
+  e.preventDefault();
 
-    const { error } = await supabase.from("leads").insert([
-      {
-        homeowner_name: form.homeowner_name,
-        phone: form.phone,
-        email: form.email,
-        address: form.address,
-        lead_source: form.lead_source,
-        estimated_value: form.estimated_value ? Number(form.estimated_value) : null,
-        notes: form.notes,
-        status: form.status || "New Lead",
-        sales_rep: form.sales_rep || "Michael",
-      },
-    ]);
+  setMessage("Saving lead...");
 
-    if (error) {
-      setMessage("Error saving lead: " + error.message);
-      return;
-    }
+  const { error } = await supabase.from("leads").insert([
+    {
+      homeowner_name: form.homeowner_name,
+      phone: form.phone,
+      email: form.email,
+      address: form.address,
+      lead_source: form.lead_source,
+      estimated_value: form.estimated_value ? Number(form.estimated_value) : null,
+      notes: form.notes,
+      status: form.status || "New Lead",
+      sales_rep: form.sales_rep || "Michael",
+    },
+  ]);
 
-    setMessage("Lead saved successfully!");
-    setShowForm(false);
-    setForm({
-      homeowner_name: "",
-      phone: "",
-      email: "",
-      address: "",
-      lead_source: "",
-      estimated_value: "",
-      notes: "",
-      status: "New Lead",
-      sales_rep: "Michael",
-    });
+  if (error) {
+    setMessage("Error saving lead: " + error.message);
+    return;
+  }
 
+  setMessage("Lead saved successfully!");
+  setShowForm(false);
+
+  setForm({
+    homeowner_name: "",
+    phone: "",
+    email: "",
+    address: "",
+    lead_source: "",
+    estimated_value: "",
+    notes: "",
+    status: "New Lead",
+    sales_rep: "Michael",
+  });
+
+  await loadLeads();
+}
+
+async function updateLeadStatus(id, newStatus) {
+  setMessage("Updating lead status...");
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ status: newStatus })
+    .eq("id", id);
+
+  if (error) {
+    setMessage("Error updating status: " + error.message);
+    return;
+  }
+
+  setMessage("Lead status updated!");
+
+  setLeads((currentLeads) =>
+    currentLeads.map((lead) =>
+      lead.id === id ? { ...lead, status: newStatus } : lead
+    )
+  );
+
+  setSelectedLead((currentLead) =>
+    currentLead ? { ...currentLead, status: newStatus } : currentLead
+  );
+}
     await loadLeads();
   }
 

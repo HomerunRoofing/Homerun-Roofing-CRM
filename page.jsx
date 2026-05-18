@@ -87,7 +87,8 @@ export default function Page() {
   const [activeJob, setActiveJob] = useState(initialJobs[0]);
   const [mobileNav, setMobileNav] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+  const [saveMessage, setSaveMessage] = useState("Ready to save new leads.");
+  const [showNewJobModal, setShowNewJobModal] = useState(false);
   const [newLead, setNewLead] = useState({
     homeowner_name: "",
     phone: "",
@@ -142,37 +143,47 @@ export default function Page() {
       return;
     }
 
-    if (!supabase) {
-      setSaveMessage("Supabase is not connected yet. Check your environment variables.");
-      return;
-    }
-
     setSavingLead(true);
-    setSaveMessage("");
+    setSaveMessage("Saving lead...");
 
     const payload = {
-      ...newLead,
-      status: "New Lead",
+      homeowner_name: newLead.homeowner_name.trim(),
+      phone: newLead.phone.trim(),
+      email: newLead.email.trim(),
+      address: newLead.address.trim(),
+      lead_source: newLead.lead_source,
+      sales_rep: newLead.sales_rep,
       estimated_value: newLead.estimated_value ? Number(newLead.estimated_value) : null,
+      notes: newLead.notes || "Call homeowner",
+      status: "New Lead",
     };
 
-    const { data, error } = await supabase
-      .from("leads")
-      .insert(payload)
-      .select()
-      .single();
+    let savedLead = null;
 
-    setSavingLead(false);
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("leads")
+        .insert([payload])
+        .select("*")
+        .single();
 
-    if (error) {
-      setSaveMessage(`Could not save lead: ${error.message}`);
-      return;
+      if (error) {
+        setSavingLead(false);
+        setSaveMessage(`Supabase error: ${error.message}`);
+        return;
+      }
+
+      savedLead = data;
+    } else {
+      savedLead = { id: Date.now(), created_at: new Date().toISOString(), ...payload };
+      setSaveMessage("Saved on screen only. Supabase environment variables are missing.");
     }
 
-    const job = leadToJob(data);
+    const job = leadToJob(savedLead);
     setJobs((current) => [job, ...current]);
     setActiveJob(job);
     setSelectedStage("All");
+    setShowNewJobModal(false);
     setNewLead({
       homeowner_name: "",
       phone: "",
@@ -183,7 +194,8 @@ export default function Page() {
       estimated_value: "",
       notes: "Call homeowner",
     });
-    setSaveMessage("Lead saved to Supabase.");
+    setSavingLead(false);
+    if (supabase) setSaveMessage("Lead saved successfully and added to the board.");
   }
 
   const navItems = [
@@ -227,7 +239,7 @@ export default function Page() {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search customer, address, rep, or source..." />
             </label>
             <button className="icon-button"><Bell size={20} /></button>
-            <button className="new-job"><Plus size={18} /> New Job</button>
+            <button className="new-job" onClick={() => setShowNewJobModal(true)}><Plus size={18} /> New Job</button>
           </div>
         </header>
 
@@ -363,6 +375,33 @@ export default function Page() {
           </div>
         </section>
       </main>
+
+      {showNewJobModal && (
+        <div className="modal-backdrop" onClick={() => setShowNewJobModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <p>Home Run Roofing CRM</p>
+                <h2>Add New Job</h2>
+              </div>
+              <button onClick={() => setShowNewJobModal(false)}><X size={22} /></button>
+            </div>
+            <div className="modal-grid">
+              <input placeholder="Homeowner name" value={newLead.homeowner_name} onChange={(e) => setNewLead({ ...newLead, homeowner_name: e.target.value })} />
+              <input placeholder="Property address" value={newLead.address} onChange={(e) => setNewLead({ ...newLead, address: e.target.value })} />
+              <input placeholder="Phone number" value={newLead.phone} onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })} />
+              <input placeholder="Email" value={newLead.email} onChange={(e) => setNewLead({ ...newLead, email: e.target.value })} />
+              <input placeholder="Estimated value" type="number" value={newLead.estimated_value} onChange={(e) => setNewLead({ ...newLead, estimated_value: e.target.value })} />
+              <select value={newLead.lead_source} onChange={(e) => setNewLead({ ...newLead, lead_source: e.target.value })}>
+                <option>Door Knock</option><option>Referral</option><option>Website</option><option>Facebook</option><option>Yard Sign</option><option>Other</option>
+              </select>
+              <textarea placeholder="Notes" value={newLead.notes} onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })} />
+            </div>
+            <button className="modal-save" onClick={addLead} disabled={savingLead}>{savingLead ? "Saving..." : "Save Job"}</button>
+            {saveMessage && <p className="save-message modal-message">{saveMessage}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
